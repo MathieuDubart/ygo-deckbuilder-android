@@ -77,6 +77,37 @@ class PrintCodeReaderTest {
     fun `ne rend rien sur un texte sans code`() {
         assertEquals(emptyList(), PrintCodeReader.codes("Dragon Blanc aux Yeux Bleus"))
     }
+
+    /*
+     * Ce que la caméra lit vraiment en bas d'une carte : le code est entouré de la rareté et
+     * de la mention d'édition. Replier tous les espaces collait ces mots au code et produisait
+     * un faux code bien formé — « ESDBE-FR0011 » — que le serveur ne pouvait que refuser.
+     */
+    @Test
+    fun `ne laisse pas les mots voisins déborder dans le code`() {
+        assertEquals(listOf("SDBE-FR001"), PrintCodeReader.codes("ULTRA RARE SDBE-FR001 1st"))
+        assertEquals(listOf("LOB-EN001"), PrintCodeReader.codes("LOB-EN001 1st Edition"))
+        assertEquals(listOf("MP22-FR266"), PrintCodeReader.codes("Secret Rare  MP22-FR266"))
+    }
+
+    // L'OCR coupe parfois après la région. Ce code-là est bon, et l'ancienne suppression
+    // globale des espaces le rattrapait : le correctif ne doit pas perdre ça au passage.
+    @Test
+    fun `tolère une coupure entre la région et le numéro`() {
+        assertEquals(listOf("SDBE-FR001"), PrintCodeReader.codes("SDBE-FR 001"))
+        assertEquals(listOf("LOB-EN001"), PrintCodeReader.codes("LOB-EN 001 1st Edition"))
+        assertEquals(emptyList(), PrintCodeReader.codes("SDBE-FR 1st Edition"))
+    }
+
+    @Test
+    fun `ignore une suite de chiffres trop longue pour être un numéro`() {
+        assertEquals(emptyList(), PrintCodeReader.codes("SDBE-FR0012345"))
+    }
+
+    @Test
+    fun `ne voit pas de code dans la mention de copyright`() {
+        assertEquals(emptyList(), PrintCodeReader.codes("© 1996 KAZUKI TAKAHASHI"))
+    }
 }
 
 class CardmarketTest {

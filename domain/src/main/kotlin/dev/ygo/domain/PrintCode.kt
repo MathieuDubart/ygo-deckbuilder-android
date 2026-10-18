@@ -50,13 +50,29 @@ data class PrintCode(
  * chiffres rattrape une lecture sur deux sans jamais inventer un code valide à partir d'un
  * texte qui n'en est pas un : le résultat est revalidé par `PrintCode.parse`.
  *
- * Les espaces sont retirés avant la recherche : l'OCR en glisse volontiers un autour du tiret.
+ * Deux précautions valent une explication, parce que les retirer produit un bug silencieux.
+ *
+ * On ne replie que les espaces **autour du tiret** — l'artefact OCR qu'on voulait rattraper —
+ * et surtout pas tous les espaces du texte : sur « ULTRA RARE SDBE-FR001 1st », tout coller
+ * donne « ULTRARARESDBE-FR0011ST », d'où le lecteur tire « ESDBE-FR0011 ». Ce faux code est
+ * assez bien formé pour passer la validation, donc le scan irait demander au serveur une
+ * carte qui n'existe pas et annoncerait « introuvable » sur une carte parfaitement lisible.
+ *
+ * Et le motif est bordé des deux côtés : une frontière de mot avant le préfixe, rien qui
+ * ressemble à un chiffre après le numéro. Sans ces bornes, un mot voisin déborde dans le
+ * code même avec les espaces conservés. La formulation est choisie pour être la même dans
+ * les trois portages — `\b` et l'anticipation négative existent partout, le lookbehind non.
+ *
+ * Le `\s*` entre la région et le numéro garde ce que la suppression globale rattrapait au
+ * passage : l'OCR coupe parfois après la région, « SDBE-FR 001 », et ce code-là est bon.
  */
 object PrintCodeReader {
-    private val PATTERN = Regex("""([A-Z0-9]{2,5})-([A-Z]{0,2})([0-9OIL]{3,4})""")
+    private val PATTERN =
+        Regex("""\b([A-Z0-9]{2,5})-([A-Z]{0,2})\s*([0-9OIL]{3,4})(?![0-9OIL])""")
+    private val AROUND_DASH = Regex("""\s*-\s*""")
 
     fun codes(text: String): List<String> {
-        val upper = text.uppercase().replace(" ", "")
+        val upper = AROUND_DASH.replace(text.uppercase(), "-")
         return PATTERN.findAll(upper).mapNotNull { match ->
             val digits = match.groupValues[3]
                 .replace('O', '0')
