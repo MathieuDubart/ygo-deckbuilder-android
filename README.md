@@ -49,12 +49,36 @@ workflow is green. It runs the domain tests, assembles the APK, and uploads it.
 
 ## Installing the APK
 
-Every push builds `ygo-deckbuilder-debug-<sha>` and attaches it to the workflow run. Download it
-from the Actions tab, unzip, and move the `.apk` to your phone — you will have to allow installs
-from whichever app you transfer it with. It is signed with the CI's debug key, which is exactly
-what sideloading needs and useless for a store.
+**Releases** are the easy path: push a tag and CI publishes one with the APK attached.
 
-The debug build installs as `dev.ygo.app.debug`, so it can sit next to a release build.
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+Grab the `.apk` from the [Releases](https://github.com/MathieuDubart/ygo-deckbuilder-android/releases)
+page, move it to your phone, and install — you will have to allow installs from whichever app
+you transfer it with. Updating is just installing the newer APK over the old one; your session
+and server address survive.
+
+That only holds because every APK is signed with the **same** key. Android refuses an update
+whose signature changed, and would make you uninstall first. The key is not in this repository —
+it is public — it comes from repository secrets:
+
+| secret | what |
+|---|---|
+| `SIGNING_KEYSTORE_BASE64` | the keystore, base64-encoded |
+| `SIGNING_KEYSTORE_PASSWORD` | its password |
+| `SIGNING_KEY_ALIAS` | `sideload` |
+| `SIGNING_KEY_PASSWORD` | the key password |
+
+Without them — on a fork's pull request, say — the build still runs and produces an *unsigned*
+APK, which is fine for checking that it compiles and useless for installing.
+
+Every push to `main` also attaches an APK to its workflow run, versioned `0.1.0-build.<n>`, if
+you would rather not wait for a tag. `versionCode` follows the run number, so a later build
+always updates over an earlier one.
+
+A local `./gradlew :app:assembleDebug` installs as `dev.ygo.app.debug` and can sit beside it.
 
 ## Architecture
 
