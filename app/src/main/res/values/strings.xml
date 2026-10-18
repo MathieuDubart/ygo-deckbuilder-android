@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Les seules chaînes qui vivent ici : celles que le système lit avant que l'app démarre.
+     Tout le reste passe par L10n et les messages.<langue>.json partagés avec le web. -->
+<resources>
+    <string name="app_name">Deck Builder</string>
+</resources>

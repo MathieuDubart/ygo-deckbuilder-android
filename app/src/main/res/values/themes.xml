@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Thème de départ, le temps que Compose prenne la main : il ne sert qu'à éviter un flash
+     blanc au lancement. Les couleurs de l'app sont définies dans ui/theme/Theme.kt. -->
+<resources>
+    <style name="Theme.Ygo" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/background_dark</item>
+    </style>
+</resources>
