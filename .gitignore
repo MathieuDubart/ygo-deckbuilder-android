@@ -1,0 +1,19 @@
+# Gradle / Android Studio
+.gradle/
+build/
+local.properties
+captures/
+.cxx/
+.externalNativeBuild/
+*.iml
+.idea/
+.kotlin/
+
+# Sorties
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+
+# macOS
+.DS_Store

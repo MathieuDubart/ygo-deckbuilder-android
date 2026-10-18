@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+# Le wrapper doit rester exécutable et en LF même cloné depuis Windows, sinon `./gradlew`
+# échoue avec une erreur d'interpréteur introuvable.
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+*.jar binary
+
+# Fichiers générés : hors des diffs, et pas de conflit à résoudre à la main.
+app/src/main/assets/messages.*.json linguist-generated=true
