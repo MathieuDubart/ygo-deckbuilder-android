@@ -68,9 +68,26 @@ jobs:
       - name: Déposer le keystore
         id: keystore
         if: ${{ env.SIGNING_KEYSTORE_BASE64 != '' }}
+        env:
+          SIGNING_KEYSTORE_PASSWORD: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
         run: |
-          echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > "${RUNNER_TEMP}/sideload.jks"
-          echo "path=${RUNNER_TEMP}/sideload.jks" >> "$GITHUB_OUTPUT"
+          KS="${RUNNER_TEMP}/sideload.jks"
+          echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$KS"
+
+          # Contrôle immédiat plutôt qu'un échec deux minutes plus tard dans l'empaquetage :
+          # le message d'AGP à ce moment-là est trompeur (« Password is not ASCII » pour un
+          # simple retour à la ligne resté collé au secret). Les `tr -d` retirent ce que la
+          # copie d'un secret traîne derrière elle.
+          PASS=$(printf '%s' "$SIGNING_KEYSTORE_PASSWORD" | tr -d '\r\n')
+          ALIAS=$(printf '%s' "$SIGNING_KEY_ALIAS" | tr -d '\r\n')
+          if ! keytool -list -keystore "$KS" -storepass "$PASS" -alias "$ALIAS" >/dev/null 2>&1; then
+            echo "::error::Le keystore ne s'ouvre pas avec SIGNING_KEYSTORE_PASSWORD / SIGNING_KEY_ALIAS."
+            echo "::error::Vérifie les secrets — un retour à la ligne collé à la valeur suffit à tout casser."
+            exit 1
+          fi
+          echo "Keystore vérifié, alias présent."
+          echo "path=${KS}" >> "$GITHUB_OUTPUT"
 
       - name: APK
         env:

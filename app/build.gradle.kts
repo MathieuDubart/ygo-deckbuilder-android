@@ -23,7 +23,12 @@ val ciVersionCode = providers.gradleProperty("ygoVersionCode").orNull?.toIntOrNu
  * donc la perte de la session et de l'adresse du serveur.
  */
 val keystoreFile = providers.environmentVariable("SIGNING_KEYSTORE_PATH").orNull
+    ?.trim()?.takeIf { it.isNotEmpty() }
     ?.let(::file)?.takeIf { it.exists() }
+
+/** Une variable d'environnement, débarrassée des blancs et de la chaîne vide. */
+fun env(name: String): String? =
+    providers.environmentVariable(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
 
 android {
     namespace = "dev.ygo.app"
@@ -43,10 +48,16 @@ android {
                 // `providers.environmentVariable` et non `System.getenv` : le cache de
                 // configuration est actif, et une lecture directe de l'environnement à la
                 // configuration le ferait échouer.
+                //
+                // Et `.trim()` sur chaque valeur, qui n'est pas de la coquetterie : la JVM
+                // refuse un mot de passe contenant un caractère hors 0x20–0x7E, retour à la
+                // ligne compris, avec le message trompeur « Password is not ASCII ». Or un
+                // secret GitHub garde le \n qu'on a copié avec la ligne. Aucune de ces trois
+                // valeurs ne peut légitimement commencer ou finir par un blanc.
                 storeFile = keystoreFile
-                storePassword = providers.environmentVariable("SIGNING_KEYSTORE_PASSWORD").orNull
-                keyAlias = providers.environmentVariable("SIGNING_KEY_ALIAS").orNull
-                keyPassword = providers.environmentVariable("SIGNING_KEY_PASSWORD").orNull
+                storePassword = env("SIGNING_KEYSTORE_PASSWORD")
+                keyAlias = env("SIGNING_KEY_ALIAS")
+                keyPassword = env("SIGNING_KEY_PASSWORD")
             }
         }
     }

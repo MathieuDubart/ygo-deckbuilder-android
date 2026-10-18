@@ -16,7 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -288,7 +288,7 @@ private fun Panel(
                         }
                     }
                     IconButton(onClick = onUndo) {
-                        Icon(Icons.Default.Undo, contentDescription = t("android.scan.undo"))
+                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = t("android.scan.undo"))
                     }
                 }
 
