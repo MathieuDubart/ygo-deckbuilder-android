@@ -61,6 +61,12 @@ jobs:
           echo "release=${RELEASE}" >> "$GITHUB_OUTPUT"
           echo "Version ${NAME} (code ${GITHUB_RUN_NUMBER}), release=${RELEASE}"
 
+          # On dit sur quel commit on travaille, et ce n'est pas de la décoration : un tag
+          # posé sur un commit ancien fait tourner le workflow TEL QU'IL ÉTAIT à ce
+          # commit-là, pas celui de la tête de branche. L'écart est invisible autrement, et
+          # se paye en échecs qu'on va chercher dans le workflow d'aujourd'hui.
+          echo "Construit $(git log -1 --format='%h %s')"
+
       # ─── Signature ────────────────────────────────────────────────────────────────────
       # Le keystore n'est pas dans le dépôt, qui est public : il arrive par un secret, et le
       # fichier déposé ici vit le temps du job. Sans le secret, l'étape est sautée et le
@@ -141,15 +147,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          APK="ygo-deckbuilder-${{ steps.version.outputs.name }}.apk"
+
           # Préversion tant qu'on est en 0.x, release pleine ensuite.
           case "${{ steps.version.outputs.name }}" in
             0.*) FLAG=--prerelease ;;
             *)   FLAG= ;;
           esac
-          gh release create "${GITHUB_REF_NAME}" \
-            "ygo-deckbuilder-${{ steps.version.outputs.name }}.apk" \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes $FLAG
+
+          # `gh release create` échoue si la release existe déjà, et elle existe dès qu'on a
+          # retagué, relancé la run, ou publié la release à la main. L'étape serait alors
+          # rouge alors que l'APK, lui, est bon : on crée si elle manque, on remplace l'APK
+          # sinon.
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} déjà présente : on y remplace l'APK."
+            gh release upload "${GITHUB_REF_NAME}" "$APK" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" "$APK" \
+              --title "${GITHUB_REF_NAME}" \
+              --generate-notes $FLAG
+          fi
 
       - name: Publier les rapports de test en cas d'échec
         if: failure()
