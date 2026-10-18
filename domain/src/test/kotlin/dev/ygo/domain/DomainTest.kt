@@ -130,7 +130,7 @@ class CardmarketTest {
     }
 
     @Test
-    fun `liste à coller : une ligne par carte, quantité en tête`() {
+    fun `liste à coller, une ligne par carte avec la quantité en tête`() {
         assertEquals(
             "3 Dark Magician\n1 Pot of Greed",
             Cardmarket.wantsListText(
