@@ -26,9 +26,24 @@ val keystoreFile = providers.environmentVariable("SIGNING_KEYSTORE_PATH").orNull
     ?.trim()?.takeIf { it.isNotEmpty() }
     ?.let(::file)?.takeIf { it.exists() }
 
-/** Une variable d'environnement, débarrassée des blancs et de la chaîne vide. */
+/**
+ * Une variable d'environnement, ramenée à de l'ASCII imprimable.
+ *
+ * Le filtre n'est pas de la coquetterie, et `trim()` n'y suffisait pas. La JVM refuse un mot
+ * de passe contenant le moindre caractère hors 0x20–0x7E et le dit très mal : « Password is
+ * not ASCII », alors que le mot de passe l'est et qu'un simple retour à la ligne suffit à
+ * déclencher ça. Or un secret GitHub garde tout ce que la copie a emporté avec la ligne —
+ * `\n`, `\r`, une espace insécable, un BOM — et `trim()` ne connaît que les blancs.
+ *
+ * Aucun des trois réglages lus ici ne peut légitimement contenir autre chose que de l'ASCII
+ * imprimable, donc filtrer ne perd rien.
+ */
 fun env(name: String): String? =
-    providers.environmentVariable(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
+    providers.environmentVariable(name).orNull
+        ?.filter { it.code in 0x20..0x7E }
+        ?.takeIf { it.isNotEmpty() }
+
+val storePass = env("SIGNING_KEYSTORE_PASSWORD")
 
 android {
     namespace = "dev.ygo.app"
@@ -48,16 +63,15 @@ android {
                 // `providers.environmentVariable` et non `System.getenv` : le cache de
                 // configuration est actif, et une lecture directe de l'environnement à la
                 // configuration le ferait échouer.
-                //
-                // Et `.trim()` sur chaque valeur, qui n'est pas de la coquetterie : la JVM
-                // refuse un mot de passe contenant un caractère hors 0x20–0x7E, retour à la
-                // ligne compris, avec le message trompeur « Password is not ASCII ». Or un
-                // secret GitHub garde le \n qu'on a copié avec la ligne. Aucune de ces trois
-                // valeurs ne peut légitimement commencer ou finir par un blanc.
                 storeFile = keystoreFile
-                storePassword = env("SIGNING_KEYSTORE_PASSWORD")
+                storePassword = storePass
                 keyAlias = env("SIGNING_KEY_ALIAS")
-                keyPassword = env("SIGNING_KEY_PASSWORD")
+                // Le keystore est un PKCS12, format dans lequel keytool refuse un mot de
+                // passe de clé différent de celui du magasin : les deux sont le même par
+                // construction. Le secret dédié reste honoré s'il existe, mais il n'est plus
+                // obligatoire — c'est une valeur de moins à recopier, donc une de moins à se
+                // tromper, et c'est précisément celle-là qui cassait la signature.
+                keyPassword = env("SIGNING_KEY_PASSWORD") ?: storePass
             }
         }
     }

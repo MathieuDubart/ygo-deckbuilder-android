@@ -69,10 +69,20 @@ it is public — it comes from repository secrets:
 | `SIGNING_KEYSTORE_BASE64` | the keystore, base64-encoded |
 | `SIGNING_KEYSTORE_PASSWORD` | its password |
 | `SIGNING_KEY_ALIAS` | `sideload` |
-| `SIGNING_KEY_PASSWORD` | the key password |
+| `SIGNING_KEY_PASSWORD` | *optional* — the key password |
 
-Without them — on a fork's pull request, say — the build still runs and produces an *unsigned*
-APK, which is fine for checking that it compiles and useless for installing.
+The keystore is a PKCS12, a format in which `keytool` refuses a key password different from
+the store's, so the two are necessarily the same value. `SIGNING_KEY_PASSWORD` is therefore
+optional: leave it out and the build uses the store password.
+
+Paste these carefully. A secret keeps whatever the copy dragged along with the line, and the
+JVM rejects a password holding any character outside `0x20–0x7E` — a trailing newline is
+enough — while blaming the password itself: *"Password is not ASCII"*. The build strips those
+characters and the workflow opens the keystore before compiling anything, so a bad secret now
+fails in ten seconds naming itself.
+
+Without any of them — on a fork's pull request, say — the build still runs and produces an
+*unsigned* APK, which is fine for checking that it compiles and useless for installing.
 
 Every push to `main` also attaches an APK to its workflow run, versioned `0.1.0-build.<n>`, if
 you would rather not wait for a tag. `versionCode` follows the run number, so a later build

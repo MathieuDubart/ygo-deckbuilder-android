@@ -71,22 +71,45 @@ jobs:
         env:
           SIGNING_KEYSTORE_PASSWORD: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
           KS="${RUNNER_TEMP}/sideload.jks"
           echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$KS"
 
-          # Contrôle immédiat plutôt qu'un échec deux minutes plus tard dans l'empaquetage :
-          # le message d'AGP à ce moment-là est trompeur (« Password is not ASCII » pour un
-          # simple retour à la ligne resté collé au secret). Les `tr -d` retirent ce que la
-          # copie d'un secret traîne derrière elle.
-          PASS=$(printf '%s' "$SIGNING_KEYSTORE_PASSWORD" | tr -d '\r\n')
-          ALIAS=$(printf '%s' "$SIGNING_KEY_ALIAS" | tr -d '\r\n')
-          if ! keytool -list -keystore "$KS" -storepass "$PASS" -alias "$ALIAS" >/dev/null 2>&1; then
-            echo "::error::Le keystore ne s'ouvre pas avec SIGNING_KEYSTORE_PASSWORD / SIGNING_KEY_ALIAS."
-            echo "::error::Vérifie les secrets — un retour à la ligne collé à la valeur suffit à tout casser."
+          # Même nettoyage que dans app/build.gradle.kts : on ne garde que l'ASCII
+          # imprimable. Un secret GitHub conserve ce que la copie a emporté avec la ligne, et
+          # la JVM refuse le moindre caractère hors 0x20–0x7E en annonçant « Password is not
+          # ASCII » — message qui accuse le mauvais coupable.
+          clean() { printf '%s' "$1" | tr -cd '\040-\176'; }
+
+          # On signale le secret fautif sans en révéler la valeur : seul le nombre d'octets
+          # retirés est affiché.
+          report() {
+            removed=$(( $(printf '%s' "$1" | wc -c) - $(clean "$1" | wc -c) ))
+            if [ "$removed" -gt 0 ]; then
+              echo "::warning::$2 contenait $removed octet(s) hors ASCII imprimable, retiré(s) — re-colle ce secret sans retour à la ligne."
+            fi
+          }
+          report "$SIGNING_KEYSTORE_PASSWORD" SIGNING_KEYSTORE_PASSWORD
+          report "$SIGNING_KEY_ALIAS" SIGNING_KEY_ALIAS
+          report "$SIGNING_KEY_PASSWORD" SIGNING_KEY_PASSWORD
+
+          PASS=$(clean "$SIGNING_KEYSTORE_PASSWORD")
+          ALIAS=$(clean "$SIGNING_KEY_ALIAS")
+          KEYPASS=$(clean "$SIGNING_KEY_PASSWORD")
+          [ -n "$KEYPASS" ] || KEYPASS="$PASS"
+
+          # `-certreq` signe une demande de certificat, donc se sert de la clé privée et
+          # réclame son mot de passe. C'est ce qui manquait au contrôle précédent : `-list`
+          # n'ouvre que le magasin, et laissait donc passer le seul secret réellement
+          # fautif pour aller échouer deux minutes plus tard dans l'empaquetage.
+          if ! keytool -certreq -alias "$ALIAS" -keystore "$KS" \
+                 -storepass "$PASS" -keypass "$KEYPASS" >/dev/null 2>&1; then
+            echo "::error::La clé privée ne s'ouvre pas : vérifie SIGNING_KEY_ALIAS, SIGNING_KEYSTORE_PASSWORD et SIGNING_KEY_PASSWORD."
+            echo "::error::Le keystore est un PKCS12 : le mot de passe de la clé y est forcément celui du magasin. Les deux secrets doivent porter la même valeur — ou supprime SIGNING_KEY_PASSWORD, le build retombe alors sur celui du magasin."
             exit 1
           fi
-          echo "Keystore vérifié, alias présent."
+          echo "Keystore vérifié : le magasin s'ouvre et la clé privée signe."
           echo "path=${KS}" >> "$GITHUB_OUTPUT"
 
       - name: APK
