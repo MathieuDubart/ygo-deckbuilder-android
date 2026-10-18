@@ -1,0 +1,53 @@
+name: Android
+
+# La CI est le compilateur de référence de ce dépôt : le SDK Android et les dépôts Maven ne
+# sont pas joignables depuis l'environnement où le code est écrit, donc rien n'est réputé
+# compiler tant que ce workflow n'est pas vert.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Tests du domaine
+        run: ./gradlew :domain:test --no-daemon
+
+      - name: APK debug
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+      # L'artefact est l'APK à sideloader : signé par la clé de debug, donc installable
+      # directement depuis le téléphone, sans keystore à gérer.
+      - name: Publier l'APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ygo-deckbuilder-debug-${{ github.sha }}
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publier les rapports de test en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapports-de-test
+          path: '**/build/reports/tests/**'
+          if-no-files-found: ignore
