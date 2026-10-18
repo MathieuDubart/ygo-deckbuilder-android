@@ -5,6 +5,26 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+/**
+ * Version et signature viennent de la ligne de commande quand la CI les fournit, et des
+ * valeurs ci-dessous sinon. Un build local reste donc possible sans rien configurer, et
+ * c'est la CI qui fait autorité pour ce qui est publié.
+ */
+val ciVersionName = providers.gradleProperty("ygoVersionName").orNull
+val ciVersionCode = providers.gradleProperty("ygoVersionCode").orNull?.toIntOrNull()
+
+/**
+ * Le keystore de sideload. Il n'est PAS dans le dépôt — celui-ci est public — mais déposé
+ * par la CI depuis un secret. Absent, on ne signe pas : le build local produit alors un APK
+ * de debug ordinaire, et c'est très bien.
+ *
+ * Une clé stable n'est pas un détail de confort : Android refuse une mise à jour dont la
+ * signature a changé. Sans elle, chaque nouvelle version demanderait une désinstallation, et
+ * donc la perte de la session et de l'adresse du serveur.
+ */
+val keystoreFile = providers.environmentVariable("SIGNING_KEYSTORE_PATH").orNull
+    ?.let(::file)?.takeIf { it.exists() }
+
 android {
     namespace = "dev.ygo.app"
     compileSdk = 35
@@ -13,21 +33,41 @@ android {
         applicationId = "dev.ygo.app"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = ciVersionCode ?: 1
+        versionName = ciVersionName ?: "0.1.0"
+    }
+
+    signingConfigs {
+        if (keystoreFile != null) {
+            create("sideload") {
+                // `providers.environmentVariable` et non `System.getenv` : le cache de
+                // configuration est actif, et une lecture directe de l'environnement à la
+                // configuration le ferait échouer.
+                storeFile = keystoreFile
+                storePassword = providers.environmentVariable("SIGNING_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.environmentVariable("SIGNING_KEY_ALIAS").orNull
+                keyPassword = providers.environmentVariable("SIGNING_KEY_PASSWORD").orNull
+            }
+        }
     }
 
     buildTypes {
         debug {
-            // L'APK à sideloader sort du type debug : signé par la clé de debug générée par
-            // la CI, donc installable sans keystore à gérer. Une vraie signature de release
-            // viendra si l'app doit un jour passer par un magasin.
+            // Celui-ci reste signé par la clé de debug de la machine : c'est le build de
+            // développement, il s'installe à côté du vrai grâce au suffixe.
             applicationIdSuffix = ".debug"
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            signingConfig = signingConfigs.findByName("sideload")
+            /*
+             * Rétrécissement désactivé pour l'instant, volontairement. R8 casse par
+             * réflexion — sérialisation, Ktor — et ça ne se voit qu'à l'exécution, jamais
+             * au build : une CI verte ne prouverait rien. On l'allumera quand l'app aura
+             * tourné sur un vrai téléphone, et on le vérifiera là.
+             */
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
