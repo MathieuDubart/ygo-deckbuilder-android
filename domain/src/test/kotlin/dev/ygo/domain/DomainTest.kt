@@ -194,6 +194,57 @@ class CardmarketTest {
     }
 }
 
+class ServerAddressTest {
+    @Test
+    fun `complete une adresse sans schema en HTTPS`() {
+        assertEquals("https://ygo.example.com", ServerAddress.normalize("ygo.example.com"))
+        assertEquals("https://192.168.1.20:4000", ServerAddress.normalize("192.168.1.20:4000"))
+    }
+
+    // Un serveur du réseau local ou joint par VPN n'a souvent pas de certificat.
+    @Test
+    fun `garde http quand il est ecrit`() {
+        assertEquals("http://192.168.1.20:4000", ServerAddress.normalize("http://192.168.1.20:4000"))
+    }
+
+    @Test
+    fun `retire les barres obliques finales et les blancs`() {
+        assertEquals("https://ygo.example.com", ServerAddress.normalize("https://ygo.example.com///"))
+        assertEquals("https://ygo.example.com", ServerAddress.normalize("  ygo.example.com  "))
+        assertEquals("https://ygo.example.com", ServerAddress.normalize("HTTPS://ygo.example.com"))
+    }
+
+    /*
+     * Le cas qui motive ce fichier : le client ajoute `api` à chaque requête, donc une adresse
+     * déjà terminée par `/api` — celle qu'on lit dans son navigateur ou son reverse proxy —
+     * produirait `/api/api/…` et un 404 qu'on ne comprend pas.
+     */
+    @Test
+    fun `retire un api final pour ne pas le demander deux fois`() {
+        assertEquals("https://ygo.example.com", ServerAddress.normalize("https://ygo.example.com/api"))
+        assertEquals("https://ygo.example.com", ServerAddress.normalize("ygo.example.com/api/"))
+        assertEquals("https://ygo.example.com", ServerAddress.normalize("https://ygo.example.com/API"))
+    }
+
+    // Mais `api` dans le nom d'hôte n'est pas un chemin, et un serveur installé sous un
+    // sous-chemin garde le sien.
+    @Test
+    fun `ne mutile ni un hote nomme api ni un sous-chemin`() {
+        assertEquals("https://api.example.com", ServerAddress.normalize("api.example.com"))
+        assertEquals("https://hote/ygo", ServerAddress.normalize("https://hote/ygo/api"))
+    }
+
+    @Test
+    fun `refuse ce qui ne mene nulle part`() {
+        assertNull(ServerAddress.normalize(""))
+        assertNull(ServerAddress.normalize("   "))
+        assertNull(ServerAddress.normalize("/api"))
+        assertNull(ServerAddress.normalize("https://"))
+        assertNull(ServerAddress.normalize("https://:4000"))
+        assertNull(ServerAddress.normalize("ftp://ygo.example.com"))
+    }
+}
+
 class DeckRulesTest {
     @Test
     fun `normalise les libellés de banlist des deux sources`() {

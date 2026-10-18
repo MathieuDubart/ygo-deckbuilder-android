@@ -21,6 +21,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.ygo.app.core.l10n.t
 import dev.ygo.app.core.state.AppState
+import dev.ygo.domain.ServerAddress
 import kotlinx.coroutines.launch
 
 /**
@@ -33,15 +34,9 @@ fun ServerSetupScreen(app: AppState) {
     val scope = rememberCoroutineScope()
     var url by remember { mutableStateOf("") }
 
-    // On normalise ici plutôt qu'à chaque requête : « monserveur.local:4000 » tapé sans
-    // schéma est le cas courant, et échouer dessus serait absurde.
-    val normalized = url.trim().trimEnd('/').let {
-        when {
-            it.isEmpty() -> ""
-            it.startsWith("http://") || it.startsWith("https://") -> it
-            else -> "https://$it"
-        }
-    }
+    // On normalise ici plutôt qu'à chaque requête, et dans `domain` plutôt qu'ici : ces
+    // règles-là sont les mêmes que côté iOS, et c'est le seul module que les tests couvrent.
+    val normalized = ServerAddress.normalize(url)
 
     Column(
         Modifier.fillMaxSize().padding(24.dp),
@@ -62,8 +57,8 @@ fun ServerSetupScreen(app: AppState) {
             modifier = Modifier.fillMaxWidth(),
         )
         Button(
-            onClick = { scope.launch { app.setServer(normalized) } },
-            enabled = normalized.isNotEmpty(),
+            onClick = { normalized?.let { scope.launch { app.setServer(it) } } },
+            enabled = normalized != null,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(t("common.actions.save"))

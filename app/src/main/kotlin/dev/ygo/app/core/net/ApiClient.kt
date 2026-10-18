@@ -67,10 +67,22 @@ class ApiClient(
         }
     }
 
+    /**
+     * `<serveur>/api/<chemin>`.
+     *
+     * Le segment `api` est ajouté ici, et non écrit dans chaque route : c'est le préfixe que
+     * le front web relaie vers l'API, et les contrôleurs NestJS n'en portent pas la trace
+     * (`@Controller('auth')`, pas `@Controller('api/auth')`). Les routes de `Endpoints`
+     * s'écrivent donc comme côté serveur, et l'adresse enregistrée reste celle du serveur —
+     * la même qu'on tape dans un navigateur.
+     *
+     * Même construction que `APIClient.swift` côté iOS. Les deux doivent rester d'accord :
+     * une adresse qui marche sur un téléphone et pas sur l'autre est indébogable à distance.
+     */
     private fun url(path: String): String {
         val base = baseUrlProvider()?.trimEnd('/')
             ?: throw ApiException(0, "Aucun serveur configuré")
-        return "$base/${path.trimStart('/')}"
+        return "$base/api/${path.trimStart('/')}"
     }
 
     suspend inline fun <reified T> get(path: String, noinline block: HttpRequestBuilder.() -> Unit = {}): T =
